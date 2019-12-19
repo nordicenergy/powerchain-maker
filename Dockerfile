@@ -25,7 +25,7 @@ RUN chmod +x /root/powerchain-maker/start_nodemanager.sh
 ADD lib/reset_chain.sh /root/powerchain-maker/reset_chain.sh
 RUN chmod +x /root/powerchain-maker/reset_chain.sh
 
-ADD powerchain-maker-nodemanager/NetworkManagerContract.sol /root/powerchain-maker/NetworkManagerContract.sol
+ADD ../powerchain-maker-nodemanager/NetworkManagerContract.sol /root/powerchain-maker/NetworkManagerContract.sol
 ADD powerchain-maker-nodemanager/NodeUnavailableTemplate.txt /root/powerchain-maker/NodeUnavailableTemplate.txt
 ADD powerchain-maker-nodemanager/JoinRequestTemplate.txt /root/powerchain-maker/JoinRequestTemplate.txt
 ADD powerchain-maker-nodemanager/TestMailTemplate.txt /root/powerchain-maker/TestMailTemplate.txt

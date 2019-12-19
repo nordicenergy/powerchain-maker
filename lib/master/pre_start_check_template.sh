@@ -11,6 +11,16 @@ function readParameters() {
         key="$1"
 
         case $key in
+            -en|--ethnet)
+            ethNetwork="$2"
+            shift # past argument
+            shift # past value
+            ;;
+            -cid|--chainId)
+            chainId="$2"
+            shift # past argument
+            shift # past value
+            ;;
             --ip)
             pCurrentIp="$2"
             shift # past argument
@@ -28,11 +38,6 @@ function readParameters() {
             ;;
             -c|--constellation)
             cPort="$2"
-            shift # past argument
-            shift # past value
-            ;;
-            --raft)
-            raPort="$2"
             shift # past argument
             shift # past value
             ;;
@@ -59,11 +64,11 @@ function readParameters() {
     done
     set -- "${POSITIONAL[@]}" # restore positional parameters
 
-    if [[ -z "$pCurrentIp" && -z "$rPort" && -z "$wPort" && -z "$cPort" && -z "$raPort" && -z "$tgoPort" && -z "$wsPort" ]]; then
+    if [[ -z "$pCurrentIp" && -z "$rPort" && -z "$wPort" && -z "$cPort" && -z "$tgoPort" && -z "$wsPort" && -z "$chainId" && -z "$ethNetwork" ]]; then
         return
     fi
 
-    if [[ -z "$pCurrentIp" || -z "$rPort" || -z "$wPort" || -z "$cPort" || -z "$raPort" || -z "$tgoPort" || -z "$wsPort" ]]; then
+    if [[ -z "$pCurrentIp" || -z "$rPort" || -z "$wPort" || -z "$cPort" || -z "$tgoPort" || -z "$wsPort" || -z "$chainId" || -z "$ethNetwork" ]]; then
         help
     fi
 
@@ -74,48 +79,46 @@ function readParameters() {
 function readInputs(){
 
     if [ -z "$NON_INTERACTIVE" ]; then
-
+        selectEthNetwork    'Please select ethereum network' ethNetwork $YELLOW
         getInputWithDefault 'Please enter IP Address of this node' "" pCurrentIp $RED
-
+        getInputWithDefault 'Please enter existing chainId to connect to' "" chainId $RED
         getInputWithDefault 'Please enter RPC Port of this node' 22000 rPort $GREEN
-
         getInputWithDefault 'Please enter Network Listening Port of this node' $((rPort+1)) wPort $GREEN
-
         getInputWithDefault 'Please enter Constellation Port of this node' $((wPort+1)) cPort $GREEN
-
-        getInputWithDefault 'Please enter Raft Port of this node' $((cPort+1)) raPort $PINK
-
-        getInputWithDefault 'Please enter Node Manager Port of this node' $((raPort+1)) tgoPort $BLUE
-
+        getInputWithDefault 'Please enter Node Manager Port of this node' $((cPort+1)) tgoPort $BLUE
         getInputWithDefault 'Please enter WS Port of this node' $((tgoPort+1)) wsPort $GREEN
-
     fi
-    role="Unassigned"
+
+    role="creator"
 
     #append values in Setup.conf file
     echo 'CURRENT_IP='$pCurrentIp > ./setup.conf
     echo 'RPC_PORT='$rPort >> ./setup.conf
     echo 'WHISPER_PORT='$wPort >> ./setup.conf
     echo 'CONSTELLATION_PORT='$cPort >> ./setup.conf
-    echo 'RAFT_PORT='$raPort >> ./setup.conf
     echo 'THIS_NODEMANAGER_PORT='$tgoPort >>  ./setup.conf
     echo 'WS_PORT='$wsPort >>  ./setup.conf
-
+    if [ $ethNetwork == "ropsten" ]; then
+      echo 'INFURA_URL=wss://ropsten.infura.io/ws' >> ./setup.conf
+      echo 'CONTRACT_ADDRESS=0xfc80ab40bbf9cf9faacad6407a9768e7d3ae92a3' >> ./setup.conf
+    elif [ $ethNetwork == "mainnet" ]; then
+      echo 'INFURA_URL=wss://mainnet.infura.io/ws' >> ./setup.conf
+      echo 'CONTRACT_ADDRESS=0x7a79868b8375131B4c6A681b112109A51EEa0a6C' >> ./setup.conf
+    else
+      echo "Invalid ethereum network option: $ethNetwork. Possible values: [ropsten, mainnet]"
+      exit 1
+    fi
+    echo 'CHAIN_ID='${chainId} >> ./setup.conf
     echo 'NETWORK_ID='$net >>  ./setup.conf
-    echo 'RAFT_ID='1 >>  ./setup.conf
     echo 'NODENAME='$nodeName >> ./setup.conf
     echo 'ROLE='$role >> ./setup.conf
     echo 'CONTRACT_ADD=' >> ./setup.conf
     echo 'REGISTERED=' >> ./setup.conf
-    echo 'MODE=ACTIVE' >> ./setup.conf
-    echo 'STATE=I' >> ./setup.conf
     PATTERN="s/r_Port/${rPort}/g"
     sed -i $PATTERN node/start_${nodeName}.sh
     PATTERN="s/w_Port/${wPort}/g"
     sed -i $PATTERN node/start_${nodeName}.sh
     PATTERN="s/nodeIp/${pCurrentIp}/g"
-    sed -i $PATTERN node/start_${nodeName}.sh
-    PATTERN="s/ra_Port/${raPort}/g"
     sed -i $PATTERN node/start_${nodeName}.sh
     PATTERN="s/nm_Port/${tgoPort}/g"
     sed -i $PATTERN node/start_${nodeName}.sh
@@ -126,11 +129,9 @@ function readInputs(){
 function staticNode(){
     PATTERN1="s/#CURRENT_IP#/$pCurrentIp/g"
     PATTERN2="s/#W_PORT#/${wPort}/g"
-    PATTERN3="s/#raftPprt#/${raPort}/g"
 
     sed -i "$PATTERN1" node/qdata/static-nodes.json
     sed -i "$PATTERN2" node/qdata/static-nodes.json
-    sed -i "$PATTERN3" node/qdata/static-nodes.json
 }
 
 function generateConstellationConf() {

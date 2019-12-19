@@ -46,11 +46,6 @@ function readParameters() {
             shift # past argument
             shift # past value
             ;;
-            --raft)
-            raPort="$2"
-            shift # past argument
-            shift # past value
-            ;;
             --nm)
             tgoPort="$2"
             shift # past argument
@@ -66,6 +61,26 @@ function readParameters() {
             shift # past argument
             shift # past value
             ;;
+            -pk|--privKey)
+            pKey="$2"
+            shift # past argument
+            shift # past value
+            ;;
+            -cid|--chainId)
+            chainId="$2"
+            shift # past argument
+            shift # past value
+            ;;
+            -en|--ethnet)
+            ethNetwork="$2"
+            shift # past argument
+            shift # past value
+            ;;
+            --validator)
+            validator="true"
+            shift # past argument
+            shift # past value
+            ;;
             *)    # unknown option
             POSITIONAL+=("$1") # save it in an array for later
             shift # past argument
@@ -74,11 +89,11 @@ function readParameters() {
     done
     set -- "${POSITIONAL[@]}" # restore positional parameters
 
-    if [[ -z "$sNode" && -z "$pMainIp" && -z "$mgoPort" && -z "$pCurrentIp" && -z "$rPort" && -z "$wPort" && -z "$cPort" && -z "$raPort" && -z "$tgoPort" && -z "$wsPort" ]]; then
+    if [[ -z "$sNode" && -z "$pMainIp" && -z "$mgoPort" && -z "$pCurrentIp" && -z "$rPort" && -z "$wPort" && -z "$cPort" && -z "$tgoPort" && -z "$wsPort" && -z "$chainId" && -z "$ethNetwork" ]]; then
         return
     fi
 
-    if [[ -z "$sNode" || -z "$pMainIp" || -z "$mgoPort" || -z "$pCurrentIp" || -z "$rPort" || -z "$wPort" || -z "$cPort" || -z "$raPort" || -z "$tgoPort" || -z "$wsPort" ]]; then
+    if [[ -z "$sNode" || -z "$pMainIp" || -z "$mgoPort" || -z "$pCurrentIp" || -z "$rPort" || -z "$wPort" || -z "$cPort" || -z "$tgoPort" || -z "$wsPort" || -z "$chainId" || -z "$ethNetwork" ]]; then
         help
     fi
 
@@ -88,17 +103,18 @@ function readParameters() {
 function readInputs(){
 
     if [ -z "$NON_INTERACTIVE" ]; then
+        selectEthNetwork    'Please select ethereum network' ethNetwork $YELLOW
         getInputWithDefault 'Please enter IP Address of existing node' "" pMainIp $RED
-        getInputWithDefault 'Please enter Node Manager Port of existing node' "" mgoPort $YELLOW
+        getInputWithDefault 'Please enter Node Manager Port of existing node' 22003 mgoPort $YELLOW
         getInputWithDefault 'Please enter IP Address of this node' "" pCurrentIp $RED
         getInputWithDefault 'Please enter RPC Port of this node' 22000 rPort $GREEN
         getInputWithDefault 'Please enter Network Listening Port of this node' $((rPort+1)) wPort $GREEN
         getInputWithDefault 'Please enter Constellation Port of this node' $((wPort+1)) cPort $GREEN
-        getInputWithDefault 'Please enter Raft Port of this node' $((cPort+1)) raPort $PINK
-        getInputWithDefault 'Please enter Node Manager Port of this node' $((raPort+1)) tgoPort $BLUE
+        getInputWithDefault 'Please enter Node Manager Port of this node' $((cPort+1)) tgoPort $BLUE
         getInputWithDefault 'Please enter WS Port of this node' $((tgoPort+1)) wsPort $GREEN
+        getInputWithDefault 'Please enter private key of this node(Empty->new key is generated)' "" pKey $RED
+        getInputWithDefault 'Please enter existing chainId to connect to' "" chainId $RED
     fi
-    role="Unassigned"
 
 }
 
@@ -120,24 +136,23 @@ function createInitNodeScript(){
 
 #function to generate enode and create static-nodes.json file
 function generateEnode(){
-    bootnode -genkey nodekey
+    if [[ -z "$pKey" ]]; then
+        bootnode -genkey nodekey
+    else
+        echo ${pKey} > nodekey
+    fi
+
     nodekey=$(cat nodekey)
     bootnode -nodekey nodekey 2>enode.txt &
-    pid=$!
-    sleep 5
-    kill -9 $pid
-    wait $pid 2> /dev/null
-    re="enode:.*@"
-    enode=$(cat enode.txt)
+    enode=$(bootnode -nodekey nodekey -writeaddress)
 
-    if [[ $enode =~ $re ]];
-        then
-        Enode=${BASH_REMATCH[0]};
-    fi
-    disc='?discport=0&raftport='
-    Enode1=$Enode$pCurrentIp:$wPort$disc$raPort
+    Enode1='enode://'$enode'@'$pCurrentIp:$wPort?'discport=0'
+    cp lib/slave/static-nodes_template.json ${sNode}/node/qdata/static-nodes.json
+    # PATTERN="s|#eNode#|${Enode1}|g"
+    # sed -i $PATTERN ${sNode}/node/qdata/static-nodes.json
     echo $Enode1 > ${sNode}/node/enode.txt
     cp nodekey ${sNode}/node/qdata/geth/.
+    chmod o+r ${sNode}/node/qdata/geth/nodekey
     rm enode.txt
     rm nodekey
 }
@@ -152,6 +167,20 @@ function createAccount(){
     fi
     mv datadir/keystore/* ${sNode}/node/qdata/keystore/${sNode}key
     rm -rf datadir
+}
+
+#function to import node accout and append it into genesis.json file
+function importAccount(){
+    echo ${pKey} > temp_key
+    sAccountAddress="$(geth --datadir datadir --password lib/slave/passwords.txt account import temp_key 2>> /dev/null)"
+    re="\{([^}]+)\}"
+    if [[ $sAccountAddress =~ $re ]];
+    then
+        sAccountAddress="0x"${BASH_REMATCH[1]};
+    fi
+    mv datadir/keystore/* ${sNode}/node/qdata/keystore/${sNode}key
+    rm -rf datadir
+    rm -rf temp_key
 }
 
 #function to create start node script without --raftJoinExisting flag
@@ -180,9 +209,20 @@ function copyScripts(){
 
 function createSetupConf() {
     echo 'NODENAME='${sNode} > ${sNode}/setup.conf
+    echo 'ACC_PUBKEY='${sAccountAddress} >> ${sNode}/setup.conf
+    if [ $ethNetwork == "ropsten" ]; then
+      echo 'INFURA_URL=wss://ropsten.infura.io/ws' >> ${sNode}/setup.conf
+      echo 'CONTRACT_ADDRESS=0xfc80ab40bbf9cf9faacad6407a9768e7d3ae92a3' >> ${sNode}/setup.conf
+    elif [ $ethNetwork == "mainnet" ]; then
+      echo 'INFURA_URL=wss://mainnet.infura.io/ws' >> ${sNode}/setup.conf
+      echo 'CONTRACT_ADDRESS=0x7a79868b8375131B4c6A681b112109A51EEa0a6C' >> ${sNode}/setup.conf
+    else
+      echo "Invalid ethereum network option: $ethNetwork. Possible values: [ropsten, mainnet]"
+      exit 1
+    fi
+    echo 'CHAIN_ID='${chainId} >> ${sNode}/setup.conf
     echo 'MASTER_IP='${pMainIp} >> ${sNode}/setup.conf
     echo 'WHISPER_PORT='${wPort} >> ${sNode}/setup.conf
-    echo 'RAFT_PORT='${raPort} >> ${sNode}/setup.conf
     echo 'RPC_PORT='${rPort} >> ${sNode}/setup.conf
     echo 'CONSTELLATION_PORT='${cPort} >> ${sNode}/setup.conf
     echo 'THIS_NODEMANAGER_PORT='${tgoPort} >> ${sNode}/setup.conf
@@ -190,8 +230,12 @@ function createSetupConf() {
     echo 'WS_PORT='${wsPort} >> ${sNode}/setup.conf
     echo 'CURRENT_IP='${pCurrentIp} >> ${sNode}/setup.conf
     echo 'REGISTERED=' >> ${sNode}/setup.conf
-    echo 'MODE=ACTIVE' >> ${sNode}/setup.conf
-    echo 'STATE=I' >> ${sNode}/setup.conf
+
+    if [ ! -z $validator ]; then
+        echo 'ROLE=validator' >> ${sNode}/setup.conf
+    else
+        echo 'ROLE=non-validator' >> ${sNode}/setup.conf
+    fi
 
     if [ ! -z $tessera ]; then
         echo 'TESSERA=true' >> ${sNode}/setup.conf
@@ -222,9 +266,14 @@ function main(){
     createInitNodeScript
     generateEnode
     copyScripts
-    createSetupConf
-    createAccount
 
+    if [[ -z "$pKey" ]]; then
+        createAccount
+    else
+        importAccount
+    fi
+
+    createSetupConf
 }
 
 main $@

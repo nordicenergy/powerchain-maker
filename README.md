@@ -1,11 +1,14 @@
-# PowerChain Maker v2.6.2
+# PowerChain Maker v1.0
 
-Nordic Energy's PowerChain Maker is a tool that allows users to create and manage PowerChain network. Manually editing configuration files and creating nodes is a slow and error-prone process. PowerChain Maker can create any number of nodes of various configurations dynamically with reduced user input. This provides a wizard-like interface with a series of questions to guide the user when creating nodes. PowerChain Maker can create nodes to:
+PowerChain Maker is a tool that allows users to create and manage PowerChain side chains networks. It is based on [Synechron's Quorum Maker](https://github.com/synechron-finlabs/powerchain-maker).
 
-- run with docker-compose (Raft consensus/PowerChain 2.2.0) for easy use in development environments; or,
-- nodes to be distributed on separate Linux boxes or cloud instances for a production environment (Raft consensus/PowerChain 2.2.0)
+Manually editing configuration files and creating nodes is a slow and error-prone process. PowerChain Maker can create any number of nodes of various configurations dynamically with reduced user input. This provides a wizard-like interface with a series of questions to guide the user when creating nodes. PowerChain Maker can create nodes to:
 
-![PowerChain Maker 2](img/QM2.png)
+- run with docker-compose (BFT consensus/PowerChain 1.0.0) for easy use in development environments; or,
+- nodes to be distributed on separate Linux boxes or cloud instances for a production environment (BFT consensus/PowerChain 1.0.0)
+
+![PowerChain Maker 1](img/screenshot1.png)
+
 
 ## PowerChain Maker provides the following benefits:
 
@@ -14,61 +17,110 @@ Nordic Energy's PowerChain Maker is a tool that allows users to create and manag
 - A Network Map Service to be used for identifying nodes and self-publishing roles.  
 - Block and Transaction Explorer
 - Smart Contract Deployment
-- Email Notifications
 
 ## Quickstart
 
-Please refer to [PowerChain Maker Wiki](https://github.com/nordicenergy/powerchain-maker/wiki) for complete reference on using PowerChain Maker. 
+For quick help, run `./setup.sh --help` 
 
-> For quick help, run `./setup.sh --help` 
+```
 
-## Change Log
-
-Change log V2.6.2
-1. Upgraded to Tessera 0.8
-1. Upgraded to PowerChain 2.2.1
-1. Fixed bug on private transaction with Constellation
-1. Fixed issue #87 (https://github.com/nordicenergy/powerchain-maker/issues/87) Block structure not preserved 
-
-Change log V2.6.1
-1. Added flag to expose ports automatically in Dev/Test Network setup
-1. Added flag to create nodes in Tessera by default
-1. Fix typo on Enabled API (nethh => net,shh)
-
-Change log V2.6
-1. Added Tessera support for Dev/Test network creation
-1. Added Tessera support for multi-machine setup
-1. Fixed port issue with constellation configuration
-
-Change log V2.5.2
-1. PowerChain version changed to V2.2.0
-1. Added detach mode for non-interactive setup
-1. Print Project details in table for Dev/Test network
-1. Fix for WS support
-1. QM banner and version information on startup
-
-Change log V2.5.1
-1. PowerChain version changed to V2.1.1 
-
-Change log V2.5
-1. PowerChain version changed to V2.1.0 
-
-Change log V2.4
-1. Added command line flags for running PowerChain Maker non-interactively 
-2. Whitelist feature added for automatically accepting join requests from whitelisted IPs 
-3. Account explorer with account creation feature added 
-4. Attach mode restart notification added to UI 
-5. Attach mode contract updation based on enode instead of nodename from setup.conf 
-6. Logging added for incoming join requests 
-7. Redundant node name updation steps removed
+Version  Built on PowerChain 1.8
 
 
-Change log V2.3
-1. Attaching nodes to exisisting PowerChain node is fully supported.
-2. Attached node can approve Join Requests. E.g. Fully migrate 7node example to PowerChain Maker and add additional nodes. 
-3. PowerChain Maker can deploy Smart Contracts using inheritance.
-4. Auto attach ABI of smart contracts deployed using Truffle and PowerChain Maker Smart Contract Deployer. 
-5. All solidity data types are supported on the transaction parameter view. 
-6. Enabled WS Ports for Web3 push service. 
-7. Additional template for sending test mail on email service registration
-8. Added -d flag for start.sh of nodes to run in daemon mode. 
+Usage ./setup.sh [COMMAND] [OPTIONS]
+
+Utility to setup PowerChain Network
+
+Commands:
+create            Create a new Node. The node hosts PowerChain side chain, Constellation and Node Manager
+join as validator Create a node and Join as validator to existing PowerChain side chain network
+join              Create a node and Join to existing PowerChain side chain network
+
+Options:
+
+For create command:
+  -n, --name              Name of the node to be created
+  --ip                    IP address of this node (IP of the host machine)
+  -r, --rpc               RPC port of this node
+  -w, --whisper           Discovery port of this node
+  -c, --constellation     Constellation port of this node
+  --nm                    Node Manager port of this node
+  --ws                    Web Socket port of this node
+  -t, --tessera           Create node with Tessera Support (Optional)
+  -pk|--privKey           Private key of node (Optional)
+  -en|--ethnet            Ethereum network
+  -cid|--chainId          Chain ID in PowerChain eht smart-contract to interact with
+NOTE if key is not provided, node keys will be generated
+
+E.g.
+./setup.sh create -n master --ip 10.0.2.15 -r 22000 -w 22001 -c 22002 --nm 22003 --ws 22004 --ethnet ropsten --chainId 0
+
+For join as validator command:
+  -n, --name              Name of the node to be created
+  --oip                   IP address of the other node (IP of the existing node)
+  --onm                   Node Manager port of the other node
+  --tip                   IP address of this node (IP of the host machine)
+  -r, --rpc               RPC port of this node
+  -w, --whisper           Discovery port of this node
+  -c, --constellation     Constellation port of this node
+  --nm                    Node Manager port of this node
+  --ws                    Web Socket port of this node
+  -t, --tessera           Create node with Tessera Support (Optional)
+  -pk|--privKey           Private key of node (Optional)
+  -en|--ethnet            Ethereum network
+  -cid|--chainId          Chain ID in PowerChain eht smart-contract to interact with
+NOTE if key is not provided, node keys will be generated
+
+E.g.
+./setup.sh join_as_validator -n slave1 --oip 10.0.2.15 --onm 22003 --tip 10.0.2.15 -r 22000 -w 22001 -c 22002 --nm 22003 --ws 22004 --ethnet ropsten --chainId 0
+
+For join command:
+  -n, --name              Name of the node to be created
+  --oip                   IP address of the other node (IP of the existing node)
+  --onm                   Node Manager port of the other node
+  --tip                   IP address of this node (IP of the host machine)
+  -r, --rpc               RPC port of this node
+  -w, --whisper           Discovery port of this node
+  -c, --constellation     Constellation port of this node
+  --nm                    Node Manager port of this node
+  --ws                    Web Socket port of this node
+  -t, --tessera           Create node with Tessera Support (Optional)
+  -pk|--privKey           Private key of node (Optional)
+  -en|--ethnet            Ethereum network
+  -cid|--chainId          Chain ID in PowerChain eht smart-contract to interact with
+NOTE if key is not provided, node keys will be generated
+
+E.g.
+./setup.sh join -n slave1 --oip 10.0.2.15 --onm 22004 --tip 10.0.2.15 -r 22000 -w 22001 -c 22002 --nm 22003 --ws 22004 --ethnet ropsten --chainId 0
+
+-h, --help              Display this help and exit
+```
+
+Example output:
+
+![PowerChain Maker 2](img/screenshot2.png)
+
+
+## Further Reading
+More information can be found in the [PowerChain whitepaper](https://www.nordicenergy.io/docs/PowerChain_Whitepaper_V1.10.0_public.pdf) section "The Blockchain Infrastructure", page 6-29.
+
+![PowerChain Pyramid](img/pyramid.png)
+
+## Official Docker Containers
+
+The official docker containers can be found under https://hub.docker.com/nordicenergy/powerchain-maker-image/tags
+
+## References 
+* [Documentation](https://gitlab.com/nordicenergy/powerchain-maker/wikis/home)
+* [PowerChain](https://gitlab.com/nordicenergy/powerchain)
+* [Istanbul BFT Consensus Documentation](https://github.com/ethereum/EIPs/issues/650)
+* [Quorum](https://github.com/jpmorganchase/quorum)
+* [Quorum Maker](https://github.com/synechron-finlabs/quorum-maker)
+
+## Documentation
+
+You can find many important information on [powerchain-maker wiki](https://gitlab.com/nordicenergy/powerchain-maker/wikis/home) including tutorials how to join as a validator or transactor, 
+how to register a new sidechain as well as FAQ section.
+
+## License
+PowerChain Maker is licensed under the [Apache License](LICENSE), also include in this repository in the `LICENSE` file

@@ -1,2 +1,2 @@
-["#eNode##CURRENT_IP#:#W_PORT#?discport=0&raftport=#raftPprt#"]
+["enode://#eNode#@#CURRENT_IP#:#W_PORT#?discport=0"]
 

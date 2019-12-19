@@ -37,18 +37,20 @@ function startNode(){
             -p $WHISPER_PORT:$WHISPER_PORT \
             -p $WHISPER_PORT:$WHISPER_PORT/udp \
             -p $CONSTELLATION_PORT:$CONSTELLATION_PORT \
-            -p $RAFT_PORT:$RAFT_PORT \
             -p $THIS_NODEMANAGER_PORT:$THIS_NODEMANAGER_PORT \
             -p $WS_PORT:$WS_PORT \
             -e CURRENT_NODE_IP=$CURRENT_IP \
             -e R_PORT=$RPC_PORT \
             -e W_PORT=$WHISPER_PORT \
             -e C_PORT=$CONSTELLATION_PORT \
-            -e RA_PORT=$RAFT_PORT \
             -e NODE_MANAGER_PORT=$THIS_NODEMANAGER_PORT \
             -e WS_PORT=$WS_PORT \
             -e NETID=$NETWORK_ID \
             -e NODE_NAME=$NODENAME \
+            -e CHAIN_ID=$CHAIN_ID \
+            -e INFURA_URL=$INFURA_URL \
+            -e CONTRACT_ADDRESS=$CONTRACT_ADDRESS \
+            -e MINING_FLAG=$MINING_FLAG \
             $dockerImage ./start_${NODENAME}.sh
 }
 
@@ -72,6 +74,9 @@ function main(){
     else
 	    DOCKER_FLAG="-d"
     fi
+
+    # Creator is always mining
+    MINING_FLAG=true
 
     startNode
 }

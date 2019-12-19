@@ -41,9 +41,6 @@ function copyScripts(){
 
     cp lib/common.sh ${mNode}/node/common.sh
 
-    cp lib/master/nodemanager_template.sh ${mNode}/node/nodemanager.sh
-    chmod +x ${mNode}/node/nodemanager.sh
-
     cp lib/master/constellation_template.conf ${mNode}/node/${mNode}.conf
 
     cp lib/master/tessera-migration.properties ${mNode}/node/qdata
@@ -58,27 +55,21 @@ function copyScripts(){
 
 #function to generate enode
 function generateEnode(){
-    bootnode -genkey nodekey
-    nodekey=$(cat nodekey)
-	bootnode -nodekey nodekey 2>enode.txt &
-	pid=$!
-	sleep 5
-	kill -9 $pid
-	wait $pid 2> /dev/null
-	re="enode:.*@"
-	enode=$(cat enode.txt)
-
-    if [[ $enode =~ $re ]];
-    	then
-        Enode=${BASH_REMATCH[0]};
+    if [[ -z "$pKey" ]]; then
+        bootnode -genkey nodekey
+    else
+        echo ${pKey} > nodekey
     fi
 
+    nodekey=$(cat nodekey)
+    enode=$(bootnode -nodekey nodekey -writeaddress)
+
     cp nodekey ${mNode}/node/qdata/geth/.
+    chmod o+r ${mNode}/node/qdata/geth/nodekey
     cp lib/master/static-nodes_template.json ${mNode}/node/qdata/static-nodes.json
-    PATTERN="s|#eNode#|${Enode}|g"
+    PATTERN="s|#eNode#|${enode}|g"
     sed -i $PATTERN ${mNode}/node/qdata/static-nodes.json
 
-    rm enode.txt
     rm nodekey
 }
 
@@ -93,10 +84,44 @@ function createAccount(){
     cp datadir/keystore/* ${mNode}/node/qdata/keystore/${mNode}key
     PATTERN="s|#mNodeAddress#|${mAccountAddress}|g"
     PATTERN1="s|#CHAIN_ID#|${NET_ID}|g"
+    #BFT#
+    mExtraData="$(istanbul extra encode --validators ${mAccountAddress} | cut -d " " -f 4)"
+    mTimeStamp="$(istanbul setup | tail -n +2 | jq -r .timestamp)"
+    PATTERN2="s|#mExtraData#|${mExtraData}|g"
+    PATTERN3="s|#mTimeStamp#|${mTimeStamp}|g"
+    #BFT#
     cat lib/master/genesis_template.json >> ${mNode}/node/genesis.json
     sed -i $PATTERN ${mNode}/node/genesis.json
     sed -i $PATTERN1 ${mNode}/node/genesis.json
+    sed -i $PATTERN2 ${mNode}/node/genesis.json
+    sed -i $PATTERN3 ${mNode}/node/genesis.json
     rm -rf datadir
+}
+
+function importAccount(){
+    echo ${pKey} > temp_key
+    mAccountAddress="$(geth --datadir datadir --password lib/master/passwords.txt account import temp_key 2>> /dev/null)"
+    re="\{([^}]+)\}"
+    if [[ $mAccountAddress =~ $re ]];
+    then
+        mAccountAddress="0x"${BASH_REMATCH[1]};
+    fi
+    cp datadir/keystore/* ${mNode}/node/qdata/keystore/${mNode}key
+    PATTERN="s|#mNodeAddress#|${mAccountAddress}|g"
+    PATTERN1="s|#CHAIN_ID#|${NET_ID}|g"
+    #BFT#
+    mExtraData="$(istanbul extra encode --validators ${mAccountAddress} | cut -d " " -f 4)"
+    mTimeStamp="$(istanbul setup | tail -n +2 | jq -r .timestamp)"
+    PATTERN2="s|#mExtraData#|${mExtraData}|g"
+    PATTERN3="s|#mTimeStamp#|${mTimeStamp}|g"
+    #BFT#
+    cat lib/master/genesis_template.json >> ${mNode}/node/genesis.json
+    sed -i $PATTERN ${mNode}/node/genesis.json
+    sed -i $PATTERN1 ${mNode}/node/genesis.json
+    sed -i $PATTERN2 ${mNode}/node/genesis.json
+    sed -i $PATTERN3 ${mNode}/node/genesis.json
+    rm -rf datadir
+    rm -rf temp_key
 }
 
 function cleanup(){
@@ -128,6 +153,11 @@ function readParameters() {
             shift # past argument
             shift # past value
             ;;
+            -pk|--privKey)
+            pKey="$2"
+            shift # past argument
+            shift # past value
+            ;;
             *)    # unknown option
             POSITIONAL+=("$1") # save it in an array for later
             shift # past argument
@@ -153,6 +183,7 @@ function main(){
 
     if [ -z "$NON_INTERACTIVE" ]; then
         getInputWithDefault 'Please enter node name' "" mNode $GREEN
+        getInputWithDefault 'Please enter private key of this node' "" pKey $RED
     fi
 
     cleanup
@@ -160,7 +191,13 @@ function main(){
     createInitNodeScript
     copyScripts
     generateEnode
-    createAccount
+
+    if [[ -z "$NON_INTERACTIVE" && -z "$pKey" ]]; then
+        createAccount
+    else
+        importAccount
+    fi
+
     executeInit
 }
 

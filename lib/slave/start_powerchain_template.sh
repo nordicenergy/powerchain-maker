@@ -28,21 +28,44 @@ function upcheck() {
     done
 }
 
-ENABLED_API="admin,db,eth,debug,miner,net,shh,txpool,personal,web3,powerchain,raft"
-GLOBAL_ARGS="--raft --nodiscover --gcmode=archive --networkid $NETID --raftjoinexisting $RAFTID  --rpc --rpcaddr 0.0.0.0 --rpcapi $ENABLED_API --emitcheckpoints"
+PK=$(<qdata/geth/nodekey)
+
+ENABLED_API="admin,db,eth,debug,miner,net,shh,txpool,personal,web3,powerchain,istanbul"
+GETH_ARGS="--v5disc
+           --datadir qdata
+           --rpccorsdomain '*'
+           --rpcport $R_PORT
+           --port $W_PORT
+           --ws
+           --wsaddr 0.0.0.0
+           --wsport $WS_PORT
+           --wsorigins '*'
+           --wsapi $ENABLED_API
+           --nat extip:$CURRENT_NODE_IP
+           --networkid $NETID
+           --rpc
+           --rpcaddr 0.0.0.0
+           --rpcapi $ENABLED_API
+           --litaccvalidator.infuraurl $INFURA_URL
+           --litaccvalidator.contract $CONTRACT_ADDRESS
+           --litaccvalidator.chainid $CHAIN_ID"
+
+if [ $MINING_FLAG ]; then
+    GETH_ARGS="$GETH_ARGS --mine --minerthreads 1 --syncmode full --istanbul.blockperiod 5"
+fi
 
 tessera="java -jar /tessera/tessera-app.jar"
 
 echo "[*] Starting Constellation node" > qdata/constellationLogs/constellation_${NODENAME}.log
-
 constellation-node ${NODENAME}.conf >> qdata/constellationLogs/constellation_${NODENAME}.log 2>&1 &
 
 upcheck
 
 echo "[*] Starting ${NODENAME} node" >> qdata/gethLogs/${NODENAME}.log
-echo "[*] geth --verbosity 6 --datadir qdata --raft --nodiscover --networkid $NETID --raftjoinexisting $RAFTID --rpc --rpcaddr 0.0.0.0 --rpcapi admin,db,eth,debug,miner,net,shh,txpool,personal,web3,powerchain,raft --emitcheckpoints --raftport $RA_PORT --rpcport $R_PORT --port $W_PORT --nat extip:$CURRENT_NODE_IP">> qdata/gethLogs/${NODENAME}.log
+echo "[*] geth $GETH_ARGS">> qdata/gethLogs/${NODENAME}.log
 
-PRIVATE_CONFIG=qdata/$NODENAME.ipc geth --verbosity 6 --datadir qdata $GLOBAL_ARGS --rpccorsdomain "*" --raftport $RA_PORT --rpcport $R_PORT --port $W_PORT --ws --wsaddr 0.0.0.0 --wsport $WS_PORT --wsorigins '*' --wsapi $ENABLED_API --nat extip:$CURRENT_NODE_IP 2>>qdata/gethLogs/${NODENAME}.log &
+PRIVATE_CONFIG=qdata/$NODENAME.ipc geth $GETH_ARGS 2>>qdata/gethLogs/${NODENAME}.log &
+
 
 cd /root/powerchain-maker/
-./start_nodemanager.sh $R_PORT $NM_PORT
+./start_nodemanager.sh -r $R_PORT -g $NM_PORT -c $CHAIN_ID -m $MINING_FLAG -p $PK -I $INFURA_URL -C $CONTRACT_ADDRESS
