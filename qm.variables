@@ -1,2 +1,5 @@
-dockerImage=syneblock/quorum-maker:2.2.1_2.6.2
-DOCKER_NETWORK_IP=10.50.0.
+dockerImage=nordicenergy/powerchain-maker
+PowerChain_version=v1.0.0    # PowerChain Branch or Tag
+powerchain_maker_version=1.0.0 # Not the branch or Tag, rather the default tag for the image. Branch or Tag will be from currently checkout git source.
+tessera_version=0.8
+
