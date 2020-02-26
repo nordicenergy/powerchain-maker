@@ -22,7 +22,7 @@ function createInitNodeScript(){
 #function to create start node script with --raft flag
 function copyScripts(){
     NET_ID=$(awk -v min=10000 -v max=99999 -v freq=1 'BEGIN{srand(); for(i=0;i<freq;i++)print int(min+rand()*(max-min+1))}')
-
+    
     cp lib/master/start_powerchain_template.sh ${mNode}/node/start_${mNode}.sh
     chmod +x ${mNode}/node/start_${mNode}.sh
 
@@ -41,6 +41,9 @@ function copyScripts(){
 
     cp lib/common.sh ${mNode}/node/common.sh
 
+    cp lib/master/nodemanager_template.sh ${mNode}/node/nodemanager.sh
+    chmod +x ${mNode}/node/nodemanager.sh
+
     cp lib/master/constellation_template.conf ${mNode}/node/${mNode}.conf
 
     cp lib/master/tessera-migration.properties ${mNode}/node/qdata
@@ -55,21 +58,27 @@ function copyScripts(){
 
 #function to generate enode
 function generateEnode(){
-    if [[ -z "$pKey" ]]; then
-        bootnode -genkey nodekey
-    else
-        echo ${pKey} > nodekey
-    fi
-
+    bootnode -genkey nodekey
     nodekey=$(cat nodekey)
-    enode=$(bootnode -nodekey nodekey -writeaddress)
-
+	bootnode -nodekey nodekey 2>enode.txt &
+	pid=$!
+	sleep 5
+	kill -9 $pid
+	wait $pid 2> /dev/null
+	re="enode:.*@"
+	enode=$(cat enode.txt)
+    
+    if [[ $enode =~ $re ]];
+    	then
+        Enode=${BASH_REMATCH[0]};
+    fi
+    
     cp nodekey ${mNode}/node/qdata/geth/.
-    chmod o+r ${mNode}/node/qdata/geth/nodekey
     cp lib/master/static-nodes_template.json ${mNode}/node/qdata/static-nodes.json
-    PATTERN="s|#eNode#|${enode}|g"
+    PATTERN="s|#eNode#|${Enode}|g"
     sed -i $PATTERN ${mNode}/node/qdata/static-nodes.json
 
+    rm enode.txt
     rm nodekey
 }
 
@@ -84,44 +93,10 @@ function createAccount(){
     cp datadir/keystore/* ${mNode}/node/qdata/keystore/${mNode}key
     PATTERN="s|#mNodeAddress#|${mAccountAddress}|g"
     PATTERN1="s|#CHAIN_ID#|${NET_ID}|g"
-    #BFT#
-    mExtraData="$(istanbul extra encode --validators ${mAccountAddress} | cut -d " " -f 4)"
-    mTimeStamp="$(istanbul setup | tail -n +2 | jq -r .timestamp)"
-    PATTERN2="s|#mExtraData#|${mExtraData}|g"
-    PATTERN3="s|#mTimeStamp#|${mTimeStamp}|g"
-    #BFT#
     cat lib/master/genesis_template.json >> ${mNode}/node/genesis.json
     sed -i $PATTERN ${mNode}/node/genesis.json
     sed -i $PATTERN1 ${mNode}/node/genesis.json
-    sed -i $PATTERN2 ${mNode}/node/genesis.json
-    sed -i $PATTERN3 ${mNode}/node/genesis.json
     rm -rf datadir
-}
-
-function importAccount(){
-    echo ${pKey} > temp_key
-    mAccountAddress="$(geth --datadir datadir --password lib/master/passwords.txt account import temp_key 2>> /dev/null)"
-    re="\{([^}]+)\}"
-    if [[ $mAccountAddress =~ $re ]];
-    then
-        mAccountAddress="0x"${BASH_REMATCH[1]};
-    fi
-    cp datadir/keystore/* ${mNode}/node/qdata/keystore/${mNode}key
-    PATTERN="s|#mNodeAddress#|${mAccountAddress}|g"
-    PATTERN1="s|#CHAIN_ID#|${NET_ID}|g"
-    #BFT#
-    mExtraData="$(istanbul extra encode --validators ${mAccountAddress} | cut -d " " -f 4)"
-    mTimeStamp="$(istanbul setup | tail -n +2 | jq -r .timestamp)"
-    PATTERN2="s|#mExtraData#|${mExtraData}|g"
-    PATTERN3="s|#mTimeStamp#|${mTimeStamp}|g"
-    #BFT#
-    cat lib/master/genesis_template.json >> ${mNode}/node/genesis.json
-    sed -i $PATTERN ${mNode}/node/genesis.json
-    sed -i $PATTERN1 ${mNode}/node/genesis.json
-    sed -i $PATTERN2 ${mNode}/node/genesis.json
-    sed -i $PATTERN3 ${mNode}/node/genesis.json
-    rm -rf datadir
-    rm -rf temp_key
 }
 
 function cleanup(){
@@ -151,13 +126,8 @@ function readParameters() {
             -n|--name)
             mNode="$2"
             shift # past argument
-            shift # past value
-            ;;
-            -pk|--privKey)
-            pKey="$2"
-            shift # past argument
-            shift # past value
-            ;;
+            shift # past value                        
+            ;;            
             *)    # unknown option
             POSITIONAL+=("$1") # save it in an array for later
             shift # past argument
@@ -177,28 +147,21 @@ function readParameters() {
     NON_INTERACTIVE=true
 }
 
-function main(){
+function main(){    
 
     readParameters $@
 
     if [ -z "$NON_INTERACTIVE" ]; then
         getInputWithDefault 'Please enter node name' "" mNode $GREEN
-        getInputWithDefault 'Please enter private key of this node' "" pKey $RED
     fi
-
+        
     cleanup
     generateKeyPair
     createInitNodeScript
     copyScripts
     generateEnode
-
-    if [[ -z "$NON_INTERACTIVE" && -z "$pKey" ]]; then
-        createAccount
-    else
-        importAccount
-    fi
-
-    executeInit
+    createAccount
+    executeInit   
 }
 
 main $@

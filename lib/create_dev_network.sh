@@ -20,12 +20,14 @@ function generateSetupConf(){
     echo 'NODENAME='node$1 > $projectName/node$1/setup.conf
     echo 'CURRENT_IP='${DOCKER_NETWORK_IP}$(($1+1)) >> $projectName/node$1/setup.conf
     echo 'THIS_NODEMANAGER_PORT=22004' >> $projectName/node$1/setup.conf
-    echo 'RPC_PORT=22000' >> $projectName/node$1/setup.conf
+    echo 'RPC_PORT=22000' >> $projectName/node$1/setup.conf    
     echo 'RAFT_ID='$1 >> $projectName/node$1/setup.conf
     echo 'PUBKEY='$(cat $projectName/node$1/node/keys/node$1.pub)>> $projectName/node$1/setup.conf
     echo 'ROLE=' >> $projectName/node$1/setup.conf
     echo 'CONTRACT_ADD=' >> $projectName/node$1/setup.conf
     echo 'REGISTERED=' >> $projectName/node$1/setup.conf
+    echo 'MODE=ACTIVE' >> $projectName/node$1/setup.conf
+    echo 'STATE=I' >> $projectName/node$1/setup.conf
 }
 
 #function to generate keyPair for node
@@ -39,7 +41,7 @@ function generateKeyPair(){
 
 #function to create start node script with --raft flag
 function copyStartTemplate(){
-
+    
     PATTERN="s|#network_Id_value#|${NET_ID}|g"
     cp lib/dev/start_powerchain_template.sh $projectName/node$1/node/start_node$1.sh
     sed -i $PATTERN $projectName/node$1/node/start_node$1.sh
@@ -47,7 +49,7 @@ function copyStartTemplate(){
     sed -i $PATTERN $projectName/node$1/node/start_node$1.sh
     PATTERN="s/#node_ip#/${DOCKER_NETWORK_IP}$(($1+1))/g"
     sed -i $PATTERN $projectName/node$1/node/start_node$1.sh
-
+    
     chmod +x $projectName/node$1/node/start_node$1.sh
 
     cp lib/dev/start_template.sh $projectName/node$1/start.sh
@@ -62,7 +64,7 @@ function copyStartTemplate(){
 
     PATTERN="s/#mNode#/node$1/g"
     sed -i $PATTERN $projectName/node$1/migrate_to_tessera.sh
-
+    
 }
 
 #function to generate enode
@@ -76,22 +78,22 @@ function generateEnode(){
 	wait $pid 2> /dev/null
 	re="enode://(.*)@"
 	enodestr=$(cat enode.txt)
-
+    
     if [[ $enodestr =~ $re ]];
     	then
         enode=${BASH_REMATCH[1]};
         echo $enode > $projectName/node$1/enode.txt
-
+        
         COMMA=","
         if [ $i -eq $nodeCount ]; then
             COMMA=""
         fi
         echo \"enode://$enode@${DOCKER_NETWORK_IP}$(($1+1)):22001?discport=0\&raftport=22003\"$COMMA >> $projectName/static-nodes.json
-
+        
     fi
-
+    
     cp nodekey $projectName/node$1/node/qdata/geth/.
-
+  
     rm enode.txt
     rm nodekey
 }
@@ -108,7 +110,7 @@ function createAccount(){
 
     cp datadir/keystore/* $projectName/node$1/node/qdata/keystore/node$1key
 
-
+    
 
     COMMA=","
     if [ $i -eq $nodeCount ]; then
@@ -116,7 +118,7 @@ function createAccount(){
     fi
 
     echo "\"$mAccountAddress\": {\"balance\": \"1000000000000000000000000000\"}$COMMA">> $projectName/accountsBalances.txt
-
+    
     rm -rf datadir
 }
 
@@ -130,15 +132,15 @@ function addNodeToDC(){
     echo "      - ./node$1:/node$1" >> $projectName/docker-compose.yml
     echo "      - ./node$1:/home" >> $projectName/docker-compose.yml
     echo "      - ./node1:/master" >> $projectName/docker-compose.yml
-
+  
     echo -ne "node$1" >> $projectName/project.info
     echo -ne "\t$(cat $projectName/node$1/node/keys/node$1.pub)" >> $projectName/project.info
-
+        
     if [[ -f .qm_export_ports || ! -z "$exposePorts" ]]; then
-
+    
         i=$1
 
-        if [ $i -lt 10 ]; then
+        if [ $i -lt 10 ]; then 
             i="0"$i
         fi
         echo "    ports:" >> $projectName/docker-compose.yml
@@ -158,21 +160,21 @@ function addNodeToDC(){
         echo -ne "\t2${i}05\n" >> $projectName/project.info
 
     else
-
+    
         echo -ne "\t$DOCKER_NETWORK_IP$(($1+1))" >> $projectName/project.info
         echo -ne "\t22000" >> $projectName/project.info
-        echo -ne "\t22001" >> $projectName/project.info
+        echo -ne "\t22001" >> $projectName/project.info    
         echo -ne "\t22002" >> $projectName/project.info
         echo -ne "\t22003" >> $projectName/project.info
         echo -ne "\t22004" >> $projectName/project.info
         echo -ne "\t22005\n" >> $projectName/project.info
-
+        
     fi
 
     echo "    networks:" >> $projectName/docker-compose.yml
     echo "      vpcbr:" >> $projectName/docker-compose.yml
     echo "        ipv4_address: $DOCKER_NETWORK_IP$(($1+1))" >> $projectName/docker-compose.yml
-
+    
 
 }
 
@@ -181,11 +183,11 @@ function createNodeDirs(){
     while : ; do
         mkdir -p $projectName/node$i/node/keys
         mkdir -p $projectName/node$i/node/qdata/{keystore,geth,gethLogs,constellationLogs}
-
+        
         generateKeyPair $i
         copyStartTemplate $i
         generateEnode $i
-        createAccount $i
+        createAccount $i    
         generateNodeConf $i
         generateSetupConf $i
         addNodeToDC $i
@@ -203,7 +205,7 @@ function copyStaticNodeJson(){
     i=1
     while : ; do
         cp $projectName/static-nodes.json $projectName/node$i/node/qdata
-
+        
         if [ $i -eq $nodeCount ]; then
             break;
         fi
@@ -228,12 +230,12 @@ function generateGenesis(){
 function initNodes(){
 
     i=1
-    while : ; do
+    while : ; do        
         cp $projectName/genesis.json $projectName/node$i/node
         pushd $projectName/node$i/node
         geth --datadir qdata init genesis.json 2>> /dev/null
         popd
-
+        
         if [ $i -eq $nodeCount ]; then
             break;
         fi
@@ -242,14 +244,14 @@ function initNodes(){
 }
 
 function migrateToTessera(){
-
+    
     i=1
-    while : ; do
-
+    while : ; do        
+        
         pushd $projectName/node$i
         . ./migrate_to_tessera.sh "http://"$DOCKER_NETWORK_IP"3:22002/" >> /dev/null 2>&1
         popd
-
+        
         if [ $i -eq $nodeCount ]; then
             break;
         fi
@@ -260,9 +262,9 @@ function migrateToTessera(){
 function cleanup() {
     rm -rf $projectName
     mkdir $projectName
-
+        
     NET_ID=$(awk -v min=10000 -v max=99999 -v freq=1 'BEGIN{srand(); for(i=0;i<freq;i++)print int(min+rand()*(max-min+1))}')
-
+    
     PATTERN="s/#DOCKER_NETWORK_IP#/$DOCKER_NETWORK_IP/g"
     sed $PATTERN lib/dev/header.yml > $projectName/docker-compose.yml
 }
@@ -297,7 +299,7 @@ function readParameters() {
             ;;
             -h|--help)
             help
-
+            
             ;;
             *)    # unknown option
             POSITIONAL+=("$1") # save it in an array for later
@@ -318,7 +320,7 @@ function readParameters() {
     NON_INTERACTIVE=true
 }
 
-function main(){
+function main(){    
 
     readParameters $@
 
@@ -326,7 +328,7 @@ function main(){
         getInputWithDefault 'Please enter a project name' "TestNetwork" projectName $RED
         getInputWithDefault 'Please enter number of nodes to be created' 3 nodeCount $GREEN
     fi
-
+   
     echo -e $BLUE'Creating '$projectName' with '$nodeCount' nodes. Please wait... '$COLOR_END
 
     displayProgress $nodeCount 0
@@ -347,7 +349,7 @@ function main(){
         migrateToTessera
         PRIVACY="TESSERA"
     fi
-
+    
     echo -e $GREEN'Project '$projectName' created successfully. Please execute docker-compose up from '$projectName' directory'$COLOR_END
 
     echo ""

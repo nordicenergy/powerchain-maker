@@ -4,7 +4,7 @@ source qm.variables
 source node/common.sh
 
 function readParameters() {
-
+    
     POSITIONAL=()
     while [[ $# -gt 0 ]]
     do
@@ -15,7 +15,7 @@ function readParameters() {
             detached="true"
             shift # past argument
             shift # past value
-            ;;
+            ;;          
             *)    # unknown option
             POSITIONAL+=("$1") # save it in an array for later
             shift # past argument
@@ -26,11 +26,11 @@ function readParameters() {
 
 }
 
-# docker command to join th network
+# docker command to join th network 
 function startNode(){
-
+    
     docker kill $NODENAME 2> /dev/null && docker rm $NODENAME 2> /dev/null
-
+    
     docker run $DOCKER_FLAG --rm --name $NODENAME \
            -v $(pwd):/home \
            -v $(pwd)/node/contracts:/root/powerchain-maker/contracts \
@@ -47,11 +47,11 @@ function main(){
 
     readParameters $@
 
-    if [[ -z "$detached" ]]; then
+    if [[ -z "$detached" ]]; then 
 	    DOCKER_FLAG="-it"
     else
 	    DOCKER_FLAG="-d"
-    fi
+    fi 	
 
     startNode
 }

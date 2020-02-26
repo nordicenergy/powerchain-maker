@@ -13,7 +13,7 @@ function getInputWithDefault() {
     local __defaultValue=$2
     local __resultvar=$3
     local __clr=$4
-
+    
     if [ -z "$__clr" ]; then
 
         __clr=$RED
@@ -26,8 +26,8 @@ function getInputWithDefault() {
     else
         read -p $__clr"$msg""[Default:"$__defaultValue"]:"$COLOR_END __newValue
     fi
-
-
+    
+    
     if [ -z "$__newValue" ]; then
 
         __newValue=$__defaultValue
@@ -37,43 +37,12 @@ function getInputWithDefault() {
     eval $__resultvar="'$__newValue'"
 }
 
-function selectEthNetwork() {
-  local msg=$1
-  local __resultvar=$2
-  local __clr=$3
-
-  if [ -z "$__clr" ]; then
-      __clr=$RED
-  fi
-
-  echo -e $__clr"$msg: [Enter for default -> Ropsten]\n" \
-      $GREEN'1) Ropsten \n' \
-      $PINK'2) Mainnet'
-  printf $WHITE"option: "$COLOR_END
-
-  read option
-  # Default is Ropsten
-  option=${option:-1}
-
-  case $option in
-  1)
-    echo "1 selected"
-    eval $__resultvar='ropsten';;
-  2)
-    echo "2 selected"
-    eval $__resultvar='mainnet';;
-  *)
-    echo "Please enter a valid option"
-    exit 1;;
-	esac
-}
-
 function updateProperty() {
     local file=$1
     local key=$2
     local value=$3
-
-    if grep -q $key= $file; then
+  
+    if grep -q $key= $file; then        
         sed -i "s/$key=.*/$key=$value/g" $file
     else
         echo "" >> $file
@@ -87,11 +56,11 @@ function displayProgress(){
     local __CURRENT=$2
 
     let __PER=$__CURRENT*100/$__TOTAL
-
+    
     local __PROG=""
 
     local __j=0
-    while : ; do
+    while : ; do  
 
         if [ $__j -lt $__PER ]; then
             __PROG+="\xE2\x96\x90"
@@ -118,12 +87,13 @@ function help(){
     echo ""
     echo -e $WHITE'Usage ./setup.sh [COMMAND] [OPTIONS]'$COLOR_END
     echo ""
-    echo "Utility to setup PowerChain Network"
+    echo "Utility to setup powerchain Network"
     echo ""
     echo "Commands:"
-    echo -e $GREEN'create'$COLOR_END    "           Create a new Node. The node hosts PowerChain side chain, Constellation and Node Manager"
-    echo -e $PINK'join as validator'$COLOR_END       "Create a node and Join as validator to existing PowerChain side chain network"
-    echo -e $BLUE'join'$COLOR_END     "             Create a node and Join to existing PowerChain side chain network"
+    echo -e $GREEN'create'$COLOR_END    "   Create a new Node. The node hosts powerchain, Constellation and Node Manager"
+    echo -e $PINK'join'$COLOR_END       "     Create a node and Join to existing Network"
+    echo -e $BLUE'attach'$COLOR_END     "   Attach to an existing powerchain Node. The node created hosts only Node Manager"
+    echo -e $CYAN'dev'$COLOR_END        "      Create a development/test network with multiple nodes"
     echo ""
     echo "Options:"
     echo ""
@@ -133,18 +103,16 @@ function help(){
     echo "  -r, --rpc               RPC port of this node"
     echo "  -w, --whisper           Discovery port of this node"
     echo "  -c, --constellation     Constellation port of this node"
+    echo "  --raft                  Raft port of this node"
     echo "  --nm                    Node Manager port of this node"
     echo "  --ws                    Web Socket port of this node"
     echo "  -t, --tessera           Create node with Tessera Support (Optional)"
-    echo "  -pk|--privKey           Private key of node (Optional)"
-    echo "  -en|--ethnet            Ethereum network"
-    echo "  -cid|--chainId          Chain ID in PowerChain eht smart-contract to interact with"
-    echo "NOTE if key is not provided, node keys will be generated"
     echo ""
     echo "E.g."
-    echo "./setup.sh create -n master --ip 10.0.2.15 -r 22000 -w 22001 -c 22002 --nm 22004 --ws 22005 --ethnet ropsten --chainId 0"
+    echo "./setup.sh create -n master --ip 10.0.2.15 -r 22000 -w 22001 -c 22002 --raft 22003 --nm 22004 --ws 22005"
     echo ""
-    echo -e $PINK'For join as validator command:'$COLOR_END
+    echo -e $PINK'For join command:'$COLOR_END
+    echo "  "
     echo "  -n, --name              Name of the node to be created"
     echo "  --oip                   IP address of the other node (IP of the existing node)"
     echo "  --onm                   Node Manager port of the other node"
@@ -152,35 +120,37 @@ function help(){
     echo "  -r, --rpc               RPC port of this node"
     echo "  -w, --whisper           Discovery port of this node"
     echo "  -c, --constellation     Constellation port of this node"
+    echo "  --raft                  Raft port of this node"
     echo "  --nm                    Node Manager port of this node"
     echo "  --ws                    Web Socket port of this node"
     echo "  -t, --tessera           Create node with Tessera Support (Optional)"
-    echo "  -pk|--privKey           Private key of node (Optional)"
-    echo "  -en|--ethnet            Ethereum network"
-    echo "  -cid|--chainId          Chain ID in PowerChain eht smart-contract to interact with"
-    echo "NOTE if key is not provided, node keys will be generated"
     echo ""
     echo "E.g."
-    echo "./setup.sh join_as_validator -n slave1 --oip 10.0.2.15 --onm 22004 --tip 10.0.2.15 -r 23000 -w 23001 -c 23002 --nm 23004 --ws 23005 --ethnet ropsten --chainId 0"
+    echo "./setup.sh join -n slave1 --oip 10.0.2.15 --onm 22004 --tip 10.0.2.15 -r 23000 -w 23001 -c 23002 --raft 23003 --nm 23004 --ws 23005"
     echo ""
-    echo -e $BLUE'For join command:'$COLOR_END
+    echo -e $BLUE'For attach command:'$COLOR_END
     echo "  -n, --name              Name of the node to be created"
-    echo "  --oip                   IP address of the other node (IP of the existing node)"
-    echo "  --onm                   Node Manager port of the other node"
-    echo "  --tip                   IP address of this node (IP of the host machine)"
-    echo "  -r, --rpc               RPC port of this node"
-    echo "  -w, --whisper           Discovery port of this node"
-    echo "  -c, --constellation     Constellation port of this node"
-    echo "  --nm                    Node Manager port of this node"
-    echo "  --ws                    Web Socket port of this node"
-    echo "  -t, --tessera           Create node with Tessera Support (Optional)"
-    echo "  -pk|--privKey           Private key of node (Optional)"
-    echo "  -en|--ethnet            Ethereum network"
-    echo "  -cid|--chainId          Chain ID in PowerChain eht smart-contract to interact with"
-    echo "NOTE if key is not provided, node keys will be generated"
+    echo "  --ip                    IP address of existing powerchain"
+    echo "  --pk                    Public Key of existing Constellation"
+    echo "  -r, --rpc               RPC port of the existing powerchain"   
+    echo "  -w, --whisper           Discovery port of this node" 
+    echo "  -c, --constellation     Constellation port existing node"
+    echo "  --raft                  Raft port of existing node"
+    echo "  --nm                    Node Manager port of this node (New Node Manager will be created by this command)"
+    echo "  --active                Active attachment mode"
+    echo "  --passive               Passive attachment mode"
     echo ""
     echo "E.g."
-    echo "./setup.sh join -n slave1 --oip 10.0.2.15 --onm 22004 --tip 10.0.2.15 -r 23000 -w 23001 -c 23002 --nm 23004 --ws 23005  --ethnet ropsten --chainId 0"
+    echo "./setup.sh attach -n slave1 --ip 10.0.2.15 --pk BULeR8JyUWhiuuCMU/HLA0Q5pzkYT+cHII3ZKBey3Bo= -r 22000 --whisper 21000 --constellation 9001 --raft 50401 --nm 11004 --active"
+    echo ""
+    echo -e $CYAN'For dev command:'$COLOR_END
+    echo "  -p, --project           Project Name"
+    echo "  -n, --nodecount         Number of nodes to be created"
+    echo "  -e, --expose            Expose docker container ports (Optional)"
+    echo "  -t, --tessera           Create node with Tessera Support (Optional)"
+    echo ""
+    echo "E.g."
+    echo "./setup.sh dev -p TestNetwork -n 3"
     echo ""
     echo "-h, --help              Display this help and exit"
 
